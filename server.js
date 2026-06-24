@@ -21,12 +21,16 @@ app.use(express.json());
 const storage = multer.memoryStorage();
 const upload = multer({
     storage: storage,
-    limits: { fileSize: 5 * 1024 * 1024 }
+    limits: {fileSize: 5 * 1024 * 1024}
 });
 
 // Configure standard Gmail Service connection
 const transporter = nodemailer.createTransport({
-    service: 'gmail',
+    host: 'smtp.gmail.com',
+    port: 587,
+    secure: false,
+    requireTLS: true,
+    family: 4,
     auth: {
         user: process.env.SMTP_USER,
         pass: process.env.SMTP_PASS
@@ -78,10 +82,10 @@ app.post('/api/contact', upload.single('resume'), async (req, res) => {
 
         await transporter.sendMail(mailOptions);
 
-        res.status(200).json({ success: true, message: 'Email sent successfully.' });
+        res.status(200).json({success: true, message: 'Email sent successfully.'});
     } catch (error) {
         console.error('Email delivery error:', error);
-        res.status(500).json({ success: false, message: 'Internal Server Error' });
+        res.status(500).json({success: false, message: 'Internal Server Error'});
     }
 });
 
