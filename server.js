@@ -1,40 +1,27 @@
-const dns = require('dns');
-dns.setDefaultResultOrder('ipv4first'); // 1. Fixes the 20-second connection timeout (MUST be line 1) [1]
-
 const express = require('express');
 const cors = require('cors');
 const multer = require('multer');
-const nodemailer = require('nodemailer');
+const { Resend } = require('resend');
 require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Enable CORS for your local Angular app
+const resend = new Resend(process.env.RESEND_API_KEY);
+
 app.use(cors({
-    origin: process.env.ALLOWED_ORIGIN || 'http://localhost:4200'
+    origin: [
+        process.env.ALLOWED_ORIGIN,
+        'http://localhost:4200'
+    ]
 }));
 
 app.use(express.json());
 
-// Set up in-memory file processing (no disk writes)
 const storage = multer.memoryStorage();
 const upload = multer({
     storage: storage,
-    limits: {fileSize: 5 * 1024 * 1024}
-});
-
-// Configure standard Gmail Service connection
-const transporter = nodemailer.createTransport({
-    host: 'smtp.gmail.com',
-    port: 587,
-    secure: false,
-    requireTLS: true,
-    family: 4,
-    auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS
-    }
+    limits: { fileSize: 5 * 1024 * 1024 }
 });
 
 app.post('/api/contact', upload.single('resume'), async (req, res) => {
@@ -51,7 +38,6 @@ app.post('/api/contact', upload.single('resume'), async (req, res) => {
         emailBody += `Email: ${payload.email}\n`;
         emailBody += `Phone: ${payload.phone}\n\n`;
 
-        // Map out non-standard form fields
         Object.keys(payload).forEach(key => {
             if (!['fullName', 'email', 'phone', 'selectedTopic', 'resume', '_subject'].includes(key)) {
                 emailBody += `${key}: ${payload[key]}\n`;
@@ -59,36 +45,30 @@ app.post('/api/contact', upload.single('resume'), async (req, res) => {
         });
 
         const mailOptions = {
-            // Prevents Gmail spam-flagging (authenticator matches "from")
-            from: `"${fullName}" <${process.env.SMTP_USER}>`,
-
-            // Allows you to reply directly to the person who filled out the form
+            from: process.env.SENDER_EMAIL,        // e.g. 'Neuranova <noreply@neuranova.com>'
             replyTo: payload.email,
-
-            // Directs the email to your recipient email, falling back to SMTP_USER if undefined
-            to: process.env.RECIPIENT_EMAIL || process.env.SMTP_USER,
-
+            to: process.env.RECIPIENT_EMAIL,
             subject: `New Submission: ${fullName} (${selectedTopic})`,
-            text: emailBody
+            text: emailBody,
         };
 
         // Attach PDF resume if present
         if (file) {
             mailOptions.attachments = [{
                 filename: file.originalname,
-                content: file.buffer
+                content: file.buffer,              // Resend accepts Buffer directly
             }];
         }
 
-        await transporter.sendMail(mailOptions);
+        await resend.emails.send(mailOptions);
 
-        res.status(200).json({success: true, message: 'Email sent successfully.'});
+        res.status(200).json({ success: true, message: 'Email sent successfully.' });
     } catch (error) {
         console.error('Email delivery error:', error);
-        res.status(500).json({success: false, message: 'Internal Server Error'});
+        res.status(500).json({ success: false, message: 'Internal Server Error' });
     }
 });
 
 app.listen(PORT, () => {
-    console.log(`Node.js/Express server is running on http://localhost:${PORT}`);
+    console.log(`Server running on http://localhost:${PORT}`);
 });
