@@ -71,7 +71,7 @@ app.post('/api/contact', upload.single('resume'), async (req, res) => {
             from: process.env.SENDER_EMAIL,
             replyTo: payload.email,
             to: process.env.RECIPIENT_EMAIL,
-            subject: `New Submission: ${fullName} (${selectedTopic})`,
+            subject: `${selectedTopic}: ${fullName}`,
             text: emailBody,
         };
 
